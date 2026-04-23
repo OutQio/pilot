@@ -3,7 +3,7 @@
 
 // Keep in sync with the constant in background.js.
 // If you upgrade the Gemini model, change it in both files.
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-3-flash-preview';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const apiKeyInput      = document.getElementById('apiKey');
@@ -103,8 +103,10 @@ btnTest.addEventListener('click', async () => {
         'x-goog-api-key': key,
       },
       body    : JSON.stringify({
-        contents         : [{ parts: [{ text: 'Hi' }] }],
-        generationConfig : { maxOutputTokens: 5 },
+        contents         : [{ parts: [{ text: 'Reply with the single word OK' }] }],
+        // thinkingBudget: 0 disables Gemini 2.5+ Flash's silent chain-of-thought,
+        // which otherwise eats the entire maxOutputTokens budget on this tiny test.
+        generationConfig : { maxOutputTokens: 20, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal  : AbortSignal.timeout(15_000),
     });

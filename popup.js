@@ -195,11 +195,26 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
   }
 });
 
-// ── AI extraction path ────────────────────────────────────────────────────────
+// ── AI extraction path (hybrid) ───────────────────────────────────────────────
+// Why hybrid?
+//   The DOM scraper (content_copy.js) is rock-solid for image URLs because it
+//   queries the live DOM and validates extensions/CDN patterns. Gemini, in
+//   contrast, regularly hallucinates image URLs on complex pages — most
+//   visibly on Amazon, where it confuses CSS-sprite identifiers like
+//   "11WsGYSItxL._RC|01DE6WSvLKL.css,..." for product images.
+//
+// So we always run the DOM extractor for images, and use Gemini purely for
+// text quality (translation + Arabic rewriting + cleaner descriptions).
 async function extractWithAI(tab, geminiKey, imgLimit, rewriteRules) {
   const willRewrite = rewriteRules?.enabled;
-  copyBar.show(20, willRewrite ? '✍️ جاري الاستخراج وإعادة الكتابة...' : '🤖 جاري تحليل الصفحة...');
+  copyBar.show(20, '🔍 جاري تحليل الصفحة...');
 
+  // 1. DOM extraction first — gives us reliable images regardless of AI outcome
+  const domResult = await extractWithDOM(tab, imgLimit);
+
+  copyBar.show(40, willRewrite ? '✍️ جاري الاستخراج وإعادة الكتابة...' : '🤖 جاري تحليل الصفحة...');
+
+  // 2. Pull page HTML for Gemini text processing
   const [{ result: pageHtml }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func  : () => document.documentElement.outerHTML,
@@ -212,13 +227,27 @@ async function extractWithAI(tab, geminiKey, imgLimit, rewriteRules) {
   });
 
   if (aiResult?.error) {
-    // Soft fallback — inform the user but don't abort
-    setStatus(copyStatus, `⚠️ AI فشل (${aiResult.error})، جاري الاستخراج العادي...`, 'warn');
-    return extractWithDOM(tab, imgLimit);
+    // Soft fallback — inform the user but don't abort. DOM result still useful.
+    setStatus(copyStatus, `⚠️ AI فشل (${aiResult.error})، استخدام نتيجة DOM`, 'warn');
+    return domResult;
   }
 
   copyBar.show(70, '✅ AI أنهى المعالجة...');
-  return { ...aiResult, aiExtracted: true, sourceUrl: tab.url };
+
+  // 3. Merge: AI for text (when non-empty and meaningful), DOM for images.
+  //    Guards against AI returning the title duplicated as description, which
+  //    happens when the page's real description isn't in the first 12k chars.
+  const aiTitle = aiResult.title?.trim();
+  const aiDesc  = aiResult.description?.trim();
+  const aiDescIsJustTitle = aiDesc && aiTitle && aiDesc.replace(/<[^>]+>/g, '').trim() === aiTitle;
+  return {
+    title       : aiTitle || domResult?.title || '',
+    description : (aiDesc && !aiDescIsJustTitle) ? aiDesc : (domResult?.description || ''),
+    images      : domResult?.images ?? [],
+    aiExtracted : true,
+    aiRewritten : aiResult.aiRewritten,
+    sourceUrl   : tab.url,
+  };
 }
 
 // ── DOM extraction path ───────────────────────────────────────────────────────

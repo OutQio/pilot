@@ -3,7 +3,15 @@
 
 // ── Single source of truth for the Gemini model ──────────────────────────────
 // Also referenced in options.js — keep both in sync if you change the model.
-const GEMINI_MODEL    = 'gemini-2.0-flash';
+//
+// Currently using gemini-3-flash-preview: warm latency (~380 ms) matches
+// 2.5-flash, output quality on Arabic rewriting is at least as good, and
+// it's the most modern Flash model in the v1beta catalogue. It is a PREVIEW
+// release — Google may retire/rename it without the same SLA as a stable
+// model. If reliability becomes an issue, swap to 'gemini-2.5-flash'
+// (stable since June 2025) by changing this single line. Both support
+// responseMimeType: "application/json" and the thinkingBudget toggle below.
+const GEMINI_MODEL    = 'gemini-3-flash-preview';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // ── Tunable limits — one place to change, everywhere benefits ─────────────────
@@ -141,6 +149,17 @@ async function aiExtractGemini(pageHtml, pageUrl, apiKey, rewriteRules = null) {
 
   // Send the key as a header so it doesn't show up in service-worker request
   // logs / browser network history. Both auth methods are accepted by Google.
+  //
+  // Two important generationConfig flags:
+  //   responseMimeType: "application/json"
+  //     Asks Gemini to constrain output to a single valid JSON document.
+  //     Eliminates markdown-fence/prose-prefix parsing that the old
+  //     "ask for JSON in the prompt" approach was vulnerable to.
+  //   thinkingConfig.thinkingBudget: 0
+  //     Gemini 2.5+ Flash defaults to "thinking" mode which silently
+  //     consumes output tokens on hidden chain-of-thought before producing
+  //     visible text. For deterministic JSON extraction we don't need it,
+  //     and it would otherwise truncate our maxOutputTokens budget.
   const resp = await fetch(GEMINI_ENDPOINT, {
     method  : 'POST',
     headers : {
@@ -149,7 +168,12 @@ async function aiExtractGemini(pageHtml, pageUrl, apiKey, rewriteRules = null) {
     },
     body    : JSON.stringify({
       contents         : [{ parts: [{ text: prompt }] }],
-      generationConfig : { temperature, maxOutputTokens },
+      generationConfig : {
+        temperature,
+        maxOutputTokens,
+        responseMimeType : 'application/json',
+        thinkingConfig   : { thinkingBudget: 0 },
+      },
     }),
     signal  : AbortSignal.timeout(LIMITS.aiFetchMs),
   });
@@ -159,28 +183,37 @@ async function aiExtractGemini(pageHtml, pageUrl, apiKey, rewriteRules = null) {
     throw new Error(err.error?.message ?? `Gemini HTTP ${resp.status}`);
   }
 
-  const data    = await resp.json();
-  const text    = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  const jsonStr = extractJSON(text);
+  const data = await resp.json();
+  const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
+  // With responseMimeType=application/json the body is already a valid JSON
+  // document, but extractJSON() is kept as belt-and-suspenders for any model
+  // that ignores the directive and returns prose.
+  const jsonStr = text.startsWith('{') && text.endsWith('}') ? text : extractJSON(text);
   if (!jsonStr) throw new Error('Gemini لم يُرجع JSON صالحاً');
 
   const parsed = JSON.parse(jsonStr);
+  // We deliberately drop parsed.images even if Gemini returns one — popup.js
+  // pairs this AI text with images from the DOM scraper, which is more
+  // reliable. See buildExtractPrompt comment for why.
   return {
     title       : (parsed.title       ?? '').trim(),
     description : (parsed.description ?? '').trim(),
-    images      : (parsed.images      ?? []).filter(Boolean).slice(0, LIMITS.maxProductImages),
     aiRewritten : useRewrite,
   };
 }
 
 // ── Prompt: extract only (no rewrite) ────────────────────────────────────────
+// We deliberately ask for only title + description, NOT images. The DOM
+// scraper handles images far more reliably than Gemini does — Gemini tends
+// to hallucinate URLs from CSS sprite identifiers, srcset fragments, and
+// other DOM noise. popup.js merges DOM-extracted images with this AI text.
 function buildExtractPrompt(url, html) {
   return `You are a product data extractor. Extract info from this e-commerce page HTML.
 URL: ${url}
 HTML: ${html.slice(0, LIMITS.aiPromptChars)}
-Return ONLY this JSON (no explanation, no markdown fence):
-{"title":"product name in original language","description":"clean HTML description","images":["abs_url1","abs_url2"]}
-Rules: images = product images only (not logos/ads), max ${LIMITS.maxProductImages}, absolute URLs.`;
+Return JSON in this shape:
+{"title":"product name in original language","description":"clean HTML description preserving <p>, <ul>, <li>, <strong>, <em>"}
+Rules: description should be the actual product description from the page (features, specs, marketing copy) — NOT just the title repeated. If no real description exists, return an empty string for description.`;
 }
 
 // ── Prompt: extract + translate + rewrite + SEO (single call) ────────────────
@@ -214,9 +247,8 @@ URL: ${url}
 HTML:
 ${html.slice(0, LIMITS.aiPromptChars)}
 
-أرجع JSON فقط بدون أي شرح أو markdown:
-{"title":"العنوان بالعربية","description":"الوصف HTML بالعربية","images":["url1","url2"]}
-قواعد الصور: صور المنتج فقط (بدون شعارات أو إعلانات)، بحد أقصى ${LIMITS.maxProductImages}، روابط مطلقة.`;
+أرجع JSON بهذا الشكل (بدون الصور — يتولى استخراجها مكوّن آخر):
+{"title":"العنوان بالعربية","description":"الوصف HTML بالعربية مع الحفاظ على <p>, <ul>, <li>, <strong>"}`;
 }
 
 // ── HTML stripping ────────────────────────────────────────────────────────────
