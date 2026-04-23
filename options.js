@@ -34,9 +34,8 @@ function showStatus(el, msg, type, durationMs = 4000) {
   setTimeout(() => { el.className = 'status'; }, durationMs);
 }
 
-function geminiEndpoint(key) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-}
+const GEMINI_ENDPOINT =
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // ── Rewrite toggle — dim/enable the fields section ───────────────────────────
 function applyRewriteToggle() {
@@ -95,9 +94,14 @@ btnTest.addEventListener('click', async () => {
   btnTest.disabled = true;
 
   try {
-    const resp = await fetch(geminiEndpoint(key), {
+    // Send the key as a header rather than a query string so it doesn't
+    // appear in DevTools / browser network history.
+    const resp = await fetch(GEMINI_ENDPOINT, {
       method  : 'POST',
-      headers : { 'Content-Type': 'application/json' },
+      headers : {
+        'Content-Type'  : 'application/json',
+        'x-goog-api-key': key,
+      },
       body    : JSON.stringify({
         contents         : [{ parts: [{ text: 'Hi' }] }],
         generationConfig : { maxOutputTokens: 5 },

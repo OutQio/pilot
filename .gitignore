@@ -16,3 +16,6 @@ build/
 *.swo
 
 *.log
+
+# Playwright MCP scratch dir (test snapshots / console logs)
+.playwright-mcp/

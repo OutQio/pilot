@@ -85,16 +85,20 @@ async function fetchProductImage(url, idx) {
   if (!url || url.startsWith('data:') || url.startsWith('blob:')) return null;
   const result = await fetchAsBase64(url, LIMITS.productImageBytes, LIMITS.imgFetchMs);
   if (!result) return null;
-  const ext = result.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+  const ext = mimeToExt(result.mimeType);
   return { ...result, filename: `product-${idx + 1}.${ext}`, originalUrl: url };
 }
 
 // ── Description image embedding ───────────────────────────────────────────────
+// Why scope replacement to the <img src="..."> attribute instead of a global
+// string replace? Two CDN URLs can share a prefix (e.g. img.png and
+// img.png?w=500). A global split/join on the prefix would corrupt the longer
+// URL. Operating at the tag-then-attribute level guarantees no collision.
 async function embedDescImages(html) {
   if (!html) return { html: '' };
 
-  const allSrcs  = [...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m => m[1]);
-  const toFetch  = [...new Set(allSrcs.filter(u => !u.startsWith('data:') && !u.startsWith('blob:')))];
+  const allSrcs = [...html.matchAll(/<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']/gi)].map(m => m[1]);
+  const toFetch = [...new Set(allSrcs.filter(u => u && !u.startsWith('data:') && !u.startsWith('blob:')))];
   if (!toFetch.length) return { html };
 
   const urlMap = new Map();
@@ -107,8 +111,14 @@ async function embedDescImages(html) {
     settled.forEach(r => { if (r.status === 'fulfilled' && r.value) urlMap.set(r.value.url, r.value.dataUrl); });
   }
 
-  let out = html;
-  urlMap.forEach((dataUrl, origUrl) => { out = out.split(origUrl).join(dataUrl); });
+  // For every <img …> tag, rewrite its src attribute only when we have a
+  // replacement. Function-form replace avoids `$n` interpolation issues that
+  // could arise if the data URL ever contained backreference syntax.
+  const out = html.replace(/<img\b[^>]*?>/gi, tag =>
+    tag.replace(/(\bsrc\s*=\s*)(["'])([^"']+)\2/i, (full, pre, q, src) =>
+      urlMap.has(src) ? `${pre}${q}${urlMap.get(src)}${q}` : full
+    )
+  );
   return { html: out };
 }
 
@@ -129,9 +139,14 @@ async function aiExtractGemini(pageHtml, pageUrl, apiKey, rewriteRules = null) {
   // Rewritten descriptions can be longer than raw-extracted ones.
   const maxOutputTokens = useRewrite ? 2048 : 1024;
 
-  const resp = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+  // Send the key as a header so it doesn't show up in service-worker request
+  // logs / browser network history. Both auth methods are accepted by Google.
+  const resp = await fetch(GEMINI_ENDPOINT, {
     method  : 'POST',
-    headers : { 'Content-Type': 'application/json' },
+    headers : {
+      'Content-Type'  : 'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body    : JSON.stringify({
       contents         : [{ parts: [{ text: prompt }] }],
       generationConfig : { temperature, maxOutputTokens },
@@ -144,12 +159,12 @@ async function aiExtractGemini(pageHtml, pageUrl, apiKey, rewriteRules = null) {
     throw new Error(err.error?.message ?? `Gemini HTTP ${resp.status}`);
   }
 
-  const data      = await resp.json();
-  const text      = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Gemini لم يُرجع JSON صالحاً');
+  const data    = await resp.json();
+  const text    = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const jsonStr = extractJSON(text);
+  if (!jsonStr) throw new Error('Gemini لم يُرجع JSON صالحاً');
 
-  const parsed = JSON.parse(jsonMatch[0]);
+  const parsed = JSON.parse(jsonStr);
   return {
     title       : (parsed.title       ?? '').trim(),
     description : (parsed.description ?? '').trim(),
@@ -233,5 +248,51 @@ function guessMime(url) {
   if (lower.includes('.png'))  return 'image/png';
   if (lower.includes('.webp')) return 'image/webp';
   if (lower.includes('.gif'))  return 'image/gif';
+  if (lower.includes('.avif')) return 'image/avif';
+  if (lower.includes('.svg'))  return 'image/svg+xml';
   return 'image/jpeg';
+}
+
+// MIME → file extension. Centralised so adding a new format is one line.
+// Avoids the previous bug where 'image/svg+xml' produced a 'svg+xml' filename.
+function mimeToExt(mime) {
+  const map = {
+    'image/jpeg'    : 'jpg',
+    'image/jpg'     : 'jpg',
+    'image/png'     : 'png',
+    'image/webp'    : 'webp',
+    'image/gif'     : 'gif',
+    'image/avif'    : 'avif',
+    'image/bmp'     : 'bmp',
+    'image/svg+xml' : 'svg',
+  };
+  return map[mime?.toLowerCase()] ?? 'jpg';
+}
+
+// Robust JSON extraction from Gemini's response.
+//   - Strips ``` and ```json fences
+//   - Walks the string looking for the FIRST balanced { ... } block
+//     (the previous `/\{[\s\S]*\}/` was greedy and would over-match when
+//     Gemini returned multiple JSON-like fragments separated by prose).
+function extractJSON(text) {
+  if (!text) return null;
+  const cleaned = text
+    .replace(/^\s*```(?:json|JSON)?\s*/m, '')
+    .replace(/\s*```\s*$/m, '')
+    .trim();
+
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (esc) { esc = false; continue; }
+    if (ch === '\\' && inStr) { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') { if (start === -1) start = i; depth++; }
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0 && start !== -1) return cleaned.slice(start, i + 1);
+    }
+  }
+  return null;
 }
