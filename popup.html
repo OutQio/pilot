@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Product Copier → Salla</title>
+  <link rel="stylesheet" href="popup.css"/>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>🛍️ Product Copier → Salla</h1>
+    <p>انسخ من أي متجر والصق في سلة</p>
+  </div>
+  <div class="header-right">
+    <button class="icon-btn" id="btnSettings" title="الإعدادات">⚙️</button>
+  </div>
+</div>
+
+<div class="ai-row">
+  <div class="ai-label">
+    <span class="ai-badge">AI</span>
+    استخراج ذكي بـ Gemini
+  </div>
+  <label class="ai-toggle" title="تفعيل/إيقاف استخراج Gemini">
+    <input type="checkbox" id="aiToggle"/>
+    <span class="ai-slider"></span>
+  </label>
+</div>
+
+<div class="body">
+
+  <!-- STEP 1: COPY -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">الخطوة ١ — نسخ المنتج</span>
+      <span class="step-badge">COPY</span>
+    </div>
+    <button id="btnCopy" class="btn btn-copy">
+      <span id="copySpinner" class="spinner" aria-hidden="true"></span>
+      <span id="copyIcon">📋</span>
+      <span id="copyLabel">نسخ من هذه الصفحة</span>
+    </button>
+    <div id="copyProgress" class="progress-wrap" aria-live="polite">
+      <div class="progress-label" id="copyProgressLabel">جاري التحميل...</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="copyProgressFill"></div>
+      </div>
+    </div>
+    <div id="copyStatus" class="status" role="status" aria-live="polite"></div>
+    <div id="preview" class="preview" aria-live="polite">
+      <div class="preview-title" id="previewTitle"></div>
+      <div class="preview-badges" id="previewBadges"></div>
+    </div>
+  </div>
+
+  <!-- STEP 2: PASTE -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">الخطوة ٢ — لصق في سلة</span>
+      <span class="step-badge">PASTE</span>
+    </div>
+    <p class="salla-hint">
+      افتح <a href="https://s.salla.sa/products/new" target="_blank" rel="noopener">صفحة إضافة منتج في سلة</a> ثم اضغط اللصق.
+    </p>
+    <button id="btnPaste" class="btn btn-paste" disabled>
+      <span id="pasteSpinner" class="spinner" aria-hidden="true"></span>
+      <span id="pasteIcon">✅</span>
+      <span id="pasteLabel">لصق البيانات في سلة</span>
+    </button>
+    <div id="pasteProgress" class="progress-wrap" aria-live="polite">
+      <div class="progress-label" id="pasteProgressLabel">جاري المعالجة...</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="pasteProgressFill"></div>
+      </div>
+    </div>
+    <div id="pasteStatus" class="status" role="status" aria-live="polite"></div>
+    <button id="btnClear" class="btn btn-clear" style="display:none">
+      🗑️ مسح البيانات المنسوخة
+    </button>
+  </div>
+
+</div>
+
+<footer class="footer">Product Copier for Salla v5.0</footer>
+
+<script src="popup.js"></script>
+</body>
+</html>

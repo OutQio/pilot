@@ -1,0 +1,204 @@
+/* popup.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  width: 340px;
+  background: #f0f2f7;
+  color: #1a202c;
+  font-size: 13px;
+}
+
+/* ── Header ── */
+.header {
+  background: linear-gradient(135deg, #6C3FF7 0%, #3B9EFF 100%);
+  color: white;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-left h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
+.header-left p  { font-size: 10px; opacity: .8; margin-top: 1px; }
+.header-right   { display: flex; gap: 6px; }
+
+.icon-btn {
+  background: rgba(255,255,255,.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+}
+.icon-btn:hover { background: rgba(255,255,255,.35); }
+
+/* ── AI row ── */
+.ai-row {
+  background: linear-gradient(90deg, rgba(108,63,247,.12), rgba(59,158,255,.12));
+  border-bottom: 1px solid rgba(108,63,247,.15);
+  padding: 7px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ai-badge {
+  background: linear-gradient(90deg, #1a73e8, #34a853);
+  color: white;
+  border-radius: 20px;
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.ai-toggle { position: relative; width: 36px; height: 20px; display: inline-block; }
+.ai-toggle input { opacity: 0; width: 0; height: 0; }
+.ai-slider {
+  position: absolute;
+  inset: 0;
+  background: #cbd5e0;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: .2s;
+}
+.ai-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: .2s;
+}
+input:checked + .ai-slider { background: #6C3FF7; }
+input:checked + .ai-slider::before { transform: translateX(16px); }
+.ai-label { font-size: 11px; color: #4a5568; display: flex; align-items: center; gap: 6px; }
+
+/* ── Body / Cards ── */
+.body { padding: 12px; }
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 13px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.07);
+}
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.card-title  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #718096; }
+.step-badge  { background: #edf2ff; color: #5a67d8; border-radius: 20px; padding: 1px 8px; font-size: 10px; font-weight: 700; }
+
+/* ── Buttons ── */
+.btn {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all .15s;
+  font-family: inherit;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-copy { background: linear-gradient(135deg, #6C3FF7, #8B5CF6); color: white; }
+.btn-copy:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a2fd4, #7c3aed);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(108,63,247,.35);
+}
+.btn-paste { background: linear-gradient(135deg, #38A169, #48BB78); color: white; }
+.btn-paste:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2f8a59, #38a169);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(56,161,105,.35);
+}
+.btn-clear {
+  background: #fff5f5;
+  color: #c53030;
+  border: 1.5px solid #fed7d7;
+  margin-top: 8px;
+  font-weight: 600;
+}
+.btn-clear:hover:not(:disabled) { background: #fed7d7; }
+
+/* ── Spinner ── */
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  display: none;
+  flex-shrink: 0;
+}
+.spinner.on { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Status messages ── */
+.status {
+  margin-top: 9px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  display: none;
+  white-space: pre-line;
+}
+.status.on      { display: block; }
+.status.info    { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+.status.success { background: #f0fff4; color: #276749; border: 1px solid #9ae6b4; }
+.status.warn    { background: #fffaf0; color: #975a16; border: 1px solid #fbd38d; }
+.status.error   { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+
+/* ── Preview card ── */
+.preview {
+  background: #f7f9fc;
+  border: 1px dashed #c3dafe;
+  border-radius: 9px;
+  padding: 10px 12px;
+  margin-top: 9px;
+  display: none;
+}
+.preview.on           { display: block; }
+.preview-title        { font-size: 12px; font-weight: 700; color: #2d3748; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-badges       { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pbadge               { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+.pbadge-blue          { background: #ebf8ff; color: #2b6cb0; }
+.pbadge-green         { background: #f0fff4; color: #276749; }
+.pbadge-purple        { background: #faf5ff; color: #6b46c1; }
+.pbadge-orange        { background: #fffaf0; color: #c05621; }
+
+/* ── Progress bar ── */
+.progress-wrap         { margin-top: 9px; display: none; }
+.progress-wrap.on      { display: block; }
+.progress-label        { font-size: 10px; color: #718096; margin-bottom: 4px; }
+.progress-bar          { height: 5px; background: #e2e8f0; border-radius: 5px; overflow: hidden; }
+.progress-fill         { height: 100%; background: linear-gradient(90deg, #1a73e8, #34a853); border-radius: 5px; width: 0%; transition: width .3s; }
+
+/* ── Salla hint ── */
+.salla-hint {
+  font-size: 11px;
+  color: #718096;
+  background: #f7f9fc;
+  border-radius: 7px;
+  padding: 7px 10px;
+  margin-bottom: 9px;
+  line-height: 1.5;
+  border: 1px solid #e2e8f0;
+}
+.salla-hint a { color: #6C3FF7; text-decoration: none; font-size: 11px; }
+
+/* ── Footer ── */
+.footer { padding: 6px 14px 12px; text-align: center; font-size: 10px; color: #a0aec0; }

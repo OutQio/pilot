@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8"/>
+  <title>إعدادات Product Copier</title>
+  <link rel="stylesheet" href="options.css"/>
+</head>
+<body>
+<div class="container">
+
+  <div class="logo">
+    <div class="logo-icon">🛍️</div>
+    <div>
+      <h1>Product Copier → Salla</h1>
+      <p>الإعدادات — Gemini AI Edition v5.0</p>
+    </div>
+  </div>
+
+  <!-- ── Gemini API key ── -->
+  <div class="section">
+    <div class="section-title">🤖 تكامل Google Gemini AI</div>
+    <div class="feature-card">
+      <h3><span class="g-badge">Gemini</span>استخراج ذكي بـ Gemini Flash</h3>
+      <p>يحلل الصفحة بالكامل ويحدد العنوان والوصف والصور بدقة من أي متجر.</p>
+    </div>
+    <label for="apiKey">مفتاح Google Gemini API</label>
+    <p class="hint">
+      احصل على مفتاح مجاني من
+      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+      — يبدأ بـ AIza...
+    </p>
+    <div class="key-input-wrap">
+      <input type="password" id="apiKey" placeholder="AIzaSy..." autocomplete="off" spellcheck="false"/>
+      <button class="toggle-eye" id="toggleEye" type="button" aria-label="إظهار/إخفاء المفتاح">👁️</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnSave" type="button">💾 حفظ المفتاح</button>
+      <button class="btn btn-test"    id="btnTest" type="button">🧪 اختبار</button>
+    </div>
+    <div id="apiStatus" class="status" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- ── Rewrite rules ── -->
+  <div class="section">
+    <div class="section-title">✍️ إعادة كتابة المنتجات بأسلوب متجرك</div>
+    <div class="feature-card">
+      <h3>كيف يعمل هذا؟</h3>
+      <p>
+        عند تفعيل هذا الخيار مع Gemini، يقوم الذكاء الاصطناعي في نفس الطلب بـ:
+        استخراج بيانات المنتج، ترجمتها للعربية، ثم إعادة كتابة العنوان والوصف
+        بأسلوب متجرك مع تحسين SEO العربي.
+      </p>
+    </div>
+
+    <label class="check-label">
+      <input type="checkbox" id="enableRewrite"/>
+      تفعيل إعادة الكتابة (يتطلب Gemini AI)
+    </label>
+
+    <div id="rewriteFields">
+      <label for="titleRules" style="margin-top:14px">قواعد كتابة العنوان</label>
+      <p class="hint">اكتب التعليمات التي تريد تطبيقها على العنوان — الطول، الترتيب، ما يجب تضمينه أو تجنبه.</p>
+      <textarea id="titleRules" class="rules-textarea" rows="3"
+        placeholder="مثال: يجب أن يبدأ العنوان بنوع المنتج، ثم الماركة إن وُجدت، ثم المواصفة الرئيسية. الحد الأقصى 100 حرف. لا تضع علامات ترقيم في النهاية."></textarea>
+
+      <label for="descRules" style="margin-top:14px">قواعد كتابة الوصف</label>
+      <p class="hint">اكتب التعليمات الخاصة بهيكل الوصف — الأسلوب، ما يجب ذكره، التنسيق المطلوب.</p>
+      <textarea id="descRules" class="rules-textarea" rows="4"
+        placeholder="مثال: ابدأ بجملة تسويقية قصيرة لا تتجاوز سطرين. ثم قائمة نقطية بأبرز 4-5 مميزات. أنهِ بفقرة قصيرة عن مناسبة المنتج. لا تذكر أسعاراً أو مقارنات بمتاجر أخرى."></textarea>
+
+      <label for="styleExamples" style="margin-top:14px">أمثلة من متجرك <span style="font-weight:400;color:#718096">(2-3 أمثلة تساعد Gemini على فهم أسلوبك)</span></label>
+      <p class="hint">الصق عنواناً ووصفاً حقيقيين من متجرك. كلما كانت الأمثلة أوضح، كانت النتائج أدق.</p>
+      <textarea id="styleExamples" class="rules-textarea" rows="8"
+        placeholder="مثال ١:
+العنوان: حقيبة ظهر مدرسية للأطفال سعة 30 لتر مقاومة للماء
+الوصف:
+حقيبة مدرسية عملية تناسب كل يوم دراسي بلا تعب أو إرهاق.
+• سعة 30 لتر تتسع للكتب والأدوات والزجاجة
+• قماش مقاوم للماء يحمي المحتويات في كل الأجواء
+• أحزمة كتف مبطنة تقلل الضغط على الظهر
+• مناسبة للمرحلة الابتدائية والمتوسطة
+
+مثال ٢:
+العنوان: ..."></textarea>
+
+      <button class="btn btn-primary" id="btnSaveRewrite" type="button" style="margin-top:14px">
+        💾 حفظ قواعد إعادة الكتابة
+      </button>
+      <div id="rewriteStatus" class="status" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- ── Performance settings ── -->
+  <div class="section">
+    <div class="section-title">⚙️ إعدادات الأداء</div>
+
+    <label class="check-label">
+      <input type="checkbox" id="useAI"/>
+      تفعيل Gemini عند توفر المفتاح
+    </label>
+
+    <label class="check-label">
+      <input type="checkbox" id="embedDescImages"/>
+      تضمين صور الوصف (يمنع الصور المعطوبة في سلة)
+    </label>
+
+    <label for="imgLimit">الحد الأقصى لصور المنتج: <strong id="maxImgVal">8</strong></label>
+    <input type="range" id="imgLimit" min="1" max="15" value="8"/>
+
+    <button class="btn btn-primary" id="btnSaveSettings" type="button" style="margin-top:14px">
+      💾 حفظ الإعدادات
+    </button>
+    <div id="settingsStatus" class="status" role="status" aria-live="polite"></div>
+  </div>
+
+</div>
+<script src="options.js"></script>
+</body>
+</html>

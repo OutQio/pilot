@@ -1,0 +1,237 @@
+// background.js — Manifest V3 service worker
+'use strict';
+
+// ── Single source of truth for the Gemini model ──────────────────────────────
+// Also referenced in options.js — keep both in sync if you change the model.
+const GEMINI_MODEL    = 'gemini-2.0-flash';
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// ── Tunable limits — one place to change, everywhere benefits ─────────────────
+const LIMITS = Object.freeze({
+  productImageBytes : 8_000_000,  // 8 MB max per product image
+  descImageBytes    : 5_000_000,  // 5 MB max per description-embedded image
+  imgFetchMs        : 10_000,     // 10 s timeout per product image
+  descFetchMs       :  8_000,     //  8 s timeout per description image
+  aiFetchMs         : 20_000,     // 20 s timeout for Gemini API call
+  aiPromptChars     : 12_000,     // chars of HTML sent to Gemini
+  maxProductImages  :  8,         // cap on images returned by AI
+  imgBatchSize      :  3,         // parallel product-image fetches
+  descBatchSize     :  2,         // parallel description-image fetches
+});
+
+// ── Message router ─────────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  switch (msg.action) {
+    case 'fetchImages':
+      fetchImagesBatched(msg.urls)
+        .then(sendResponse)
+        .catch(() => sendResponse([]));
+      return true;   // keep port open for async response
+
+    case 'aiExtract':
+      aiExtractGemini(msg.html, msg.url, msg.apiKey, msg.rewriteRules)
+        .then(sendResponse)
+        .catch(e => sendResponse({ error: e.message }));
+      return true;
+
+    case 'fetchDescriptionImages':
+      embedDescImages(msg.html)
+        .then(sendResponse)
+        .catch(() => sendResponse({ html: msg.html }));
+      return true;
+  }
+  return false;  // synchronous — no response needed
+});
+
+// ── Shared fetch helper ───────────────────────────────────────────────────────
+// Previously: fetchOne() and the inner closure of embedDescImages() each had
+// their own fetch → resp.ok check → blob → size check → FileReader pipeline.
+// Now there is exactly ONE place that does this.
+//
+// Returns { base64: string, mimeType: string } or null on any failure.
+async function fetchAsBase64(url, maxBytes, timeoutMs) {
+  const abs = url.startsWith('//') ? `https:${url}` : url;
+  try {
+    const resp = await fetch(abs, {
+      method      : 'GET',
+      credentials : 'omit',
+      cache       : 'force-cache',
+      headers     : { Accept: 'image/*,*/*;q=0.8' },
+      signal      : AbortSignal.timeout(timeoutMs),
+    });
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    if (!blob?.size || blob.size > maxBytes) return null;
+    const mimeType = blob.type || guessMime(abs);
+    return { base64: await blobToBase64(blob), mimeType };
+  } catch { return null; }
+}
+
+// ── Product image batch fetch ─────────────────────────────────────────────────
+async function fetchImagesBatched(urls) {
+  if (!urls?.length) return [];
+  const out = [];
+  for (let i = 0; i < urls.length; i += LIMITS.imgBatchSize) {
+    const batch   = urls.slice(i, i + LIMITS.imgBatchSize);
+    const settled = await Promise.allSettled(
+      batch.map((url, j) => fetchProductImage(url, i + j))
+    );
+    settled.forEach(r => { if (r.status === 'fulfilled' && r.value) out.push(r.value); });
+  }
+  return out;
+}
+
+async function fetchProductImage(url, idx) {
+  if (!url || url.startsWith('data:') || url.startsWith('blob:')) return null;
+  const result = await fetchAsBase64(url, LIMITS.productImageBytes, LIMITS.imgFetchMs);
+  if (!result) return null;
+  const ext = result.mimeType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+  return { ...result, filename: `product-${idx + 1}.${ext}`, originalUrl: url };
+}
+
+// ── Description image embedding ───────────────────────────────────────────────
+async function embedDescImages(html) {
+  if (!html) return { html: '' };
+
+  const allSrcs  = [...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi)].map(m => m[1]);
+  const toFetch  = [...new Set(allSrcs.filter(u => !u.startsWith('data:') && !u.startsWith('blob:')))];
+  if (!toFetch.length) return { html };
+
+  const urlMap = new Map();
+  for (let i = 0; i < toFetch.length; i += LIMITS.descBatchSize) {
+    const batch   = toFetch.slice(i, i + LIMITS.descBatchSize);
+    const settled = await Promise.allSettled(batch.map(async url => {
+      const res = await fetchAsBase64(url, LIMITS.descImageBytes, LIMITS.descFetchMs);
+      return res ? { url, dataUrl: `data:${res.mimeType};base64,${res.base64}` } : null;
+    }));
+    settled.forEach(r => { if (r.status === 'fulfilled' && r.value) urlMap.set(r.value.url, r.value.dataUrl); });
+  }
+
+  let out = html;
+  urlMap.forEach((dataUrl, origUrl) => { out = out.split(origUrl).join(dataUrl); });
+  return { html: out };
+}
+
+// ── Gemini AI extraction ──────────────────────────────────────────────────────
+// rewriteRules is optional. When present and enabled, a single Gemini call
+// both extracts AND rewrites — no second round-trip needed.
+async function aiExtractGemini(pageHtml, pageUrl, apiKey, rewriteRules = null) {
+  if (!apiKey) throw new Error('مفتاح Gemini API مفقود');
+
+  const cleanHtml  = stripForAI(pageHtml);
+  const useRewrite = rewriteRules?.enabled && (rewriteRules.titleRules || rewriteRules.descRules || rewriteRules.examples);
+  const prompt     = useRewrite
+    ? buildRewritePrompt(pageUrl, cleanHtml, rewriteRules)
+    : buildExtractPrompt(pageUrl, cleanHtml);
+
+  // Rewriting requires more creative latitude than pure extraction.
+  const temperature    = useRewrite ? 0.4 : 0.1;
+  // Rewritten descriptions can be longer than raw-extracted ones.
+  const maxOutputTokens = useRewrite ? 2048 : 1024;
+
+  const resp = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+    method  : 'POST',
+    headers : { 'Content-Type': 'application/json' },
+    body    : JSON.stringify({
+      contents         : [{ parts: [{ text: prompt }] }],
+      generationConfig : { temperature, maxOutputTokens },
+    }),
+    signal  : AbortSignal.timeout(LIMITS.aiFetchMs),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message ?? `Gemini HTTP ${resp.status}`);
+  }
+
+  const data      = await resp.json();
+  const text      = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Gemini لم يُرجع JSON صالحاً');
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  return {
+    title       : (parsed.title       ?? '').trim(),
+    description : (parsed.description ?? '').trim(),
+    images      : (parsed.images      ?? []).filter(Boolean).slice(0, LIMITS.maxProductImages),
+    aiRewritten : useRewrite,
+  };
+}
+
+// ── Prompt: extract only (no rewrite) ────────────────────────────────────────
+function buildExtractPrompt(url, html) {
+  return `You are a product data extractor. Extract info from this e-commerce page HTML.
+URL: ${url}
+HTML: ${html.slice(0, LIMITS.aiPromptChars)}
+Return ONLY this JSON (no explanation, no markdown fence):
+{"title":"product name in original language","description":"clean HTML description","images":["abs_url1","abs_url2"]}
+Rules: images = product images only (not logos/ads), max ${LIMITS.maxProductImages}, absolute URLs.`;
+}
+
+// ── Prompt: extract + translate + rewrite + SEO (single call) ────────────────
+// Everything happens in one Gemini call:
+//   1. Extract raw product data from the page HTML (any language)
+//   2. Translate title and description to Arabic
+//   3. Rewrite using the store's title rules, description rules, and examples
+//   4. Optimise for Arabic Google SEO (natural keyword integration, not stuffed)
+function buildRewritePrompt(url, html, rules) {
+  const examplesBlock = rules.examples?.trim()
+    ? `\n\nأمثلة من المتجر (استخدمها لفهم الأسلوب المطلوب، لا تنسخها):\n${rules.examples.trim()}`
+    : '';
+
+  const titleRulesBlock = rules.titleRules?.trim()
+    ? `\nقواعد العنوان:\n${rules.titleRules.trim()}`
+    : '';
+
+  const descRulesBlock = rules.descRules?.trim()
+    ? `\nقواعد الوصف:\n${rules.descRules.trim()}`
+    : '';
+
+  return `أنت خبير في كتابة محتوى المنتجات للتجارة الإلكترونية بالعربية مع خبرة في SEO.
+
+مهمتك:
+1. استخرج بيانات المنتج من HTML أدناه (قد يكون المحتوى بالصينية أو الإنجليزية أو العربية)
+2. ترجم العنوان والوصف إلى العربية إن لم يكونا بها
+3. أعد كتابة العنوان والوصف بالعربية وفق القواعد والأمثلة أدناه
+4. حسّن النص لـ SEO العربي: أدرج الكلمات المفتاحية بشكل طبيعي في النص، لا تكرارها بشكل مبالغ${titleRulesBlock}${descRulesBlock}${examplesBlock}
+
+URL: ${url}
+HTML:
+${html.slice(0, LIMITS.aiPromptChars)}
+
+أرجع JSON فقط بدون أي شرح أو markdown:
+{"title":"العنوان بالعربية","description":"الوصف HTML بالعربية","images":["url1","url2"]}
+قواعد الصور: صور المنتج فقط (بدون شعارات أو إعلانات)، بحد أقصى ${LIMITS.maxProductImages}، روابط مطلقة.`;
+}
+
+// ── HTML stripping ────────────────────────────────────────────────────────────
+// Removes scripts, styles, nav, footer etc. before sending to AI.
+// Typical saving: ~70% of raw HTML tokens.
+function stripForAI(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(header|nav|footer|aside|iframe|noscript)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/\s{3,}/g, ' ')
+    .replace(/\n{3,}/g, '\n');
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.onerror   = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function guessMime(url) {
+  const lower = url.toLowerCase();
+  if (lower.includes('.png'))  return 'image/png';
+  if (lower.includes('.webp')) return 'image/webp';
+  if (lower.includes('.gif'))  return 'image/gif';
+  return 'image/jpeg';
+}

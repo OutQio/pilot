@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Product Copier → Salla (AI)",
+  "version": "5.0.0",
+  "description": "انسخ المنتج من أي متجر والصقه في سلة مع دعم Gemini AI",
+  "minimum_chrome_version": "103",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none';"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html"
+}
