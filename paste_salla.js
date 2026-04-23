@@ -20,12 +20,25 @@ function pasteIntoSalla(titleText, descHtml, imagesBase64) {
   // Stencil components intercept .value via their prototype's property descriptor.
   // Setting el.value directly bypasses the setter and the component never updates.
   // We must call descriptor.set.call(el, value) to go through the reactive path.
+  //
+  // Walks the prototype chain so we still find the descriptor when Stencil
+  // places it on a parent class (e.g. some s-input subclasses extend a base).
+  function findValueSetter(el) {
+    let proto = Object.getPrototypeOf(el);
+    while (proto && proto !== HTMLElement.prototype && proto !== Object.prototype) {
+      const d = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (d?.set) return d.set;
+      proto = Object.getPrototypeOf(proto);
+    }
+    return null;
+  }
+
   function setStencilValue(el, value) {
     if (!el) return;
     try {
-      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
-      if (descriptor?.set) {
-        descriptor.set.call(el, value);
+      const setter = findValueSetter(el);
+      if (setter) {
+        setter.call(el, value);
         el.dispatchEvent(new CustomEvent('input',    { bubbles: true, detail: { value } }));
         el.dispatchEvent(new CustomEvent('change',   { bubbles: true, detail: { value } }));
         el.dispatchEvent(new CustomEvent('s-change', { bubbles: true, detail: { value } }));
@@ -194,7 +207,11 @@ function pasteIntoSalla(titleText, descHtml, imagesBase64) {
   } catch (e) { log.push(`❌ الصور: ${e.message}`); }
 
   return {
-    success  : titleOk && descOk,
+    // Why include imagesOk? Previously we returned success=true even when
+    // image upload failed, which caused the popup to flash a green ✅ while
+    // silently dropping all product photos. imagesOk defaults to true when
+    // no images were provided, so a text-only paste still passes.
+    success  : titleOk && descOk && imagesOk,
     titleOk,
     descOk,
     imagesOk,

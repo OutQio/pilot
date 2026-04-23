@@ -310,8 +310,16 @@ document.getElementById('btnPaste').addEventListener('click', async () => {
 });
 
 // ── Guard: only paste to salla.sa / salla.com domains ────────────────────────
+// Why URL parsing instead of String#includes?
+//   The old `url.includes('salla.sa')` matched anywhere in the URL — including
+//   query strings — so https://evil.com/?ref=salla.sa would pass.
+//   Compare against the parsed hostname instead, with a strict suffix match.
 function isSallaTab(url = '') {
-  return url.includes('salla.sa') || url.includes('salla.com');
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'salla.sa'  || host.endsWith('.salla.sa')
+        || host === 'salla.com' || host.endsWith('.salla.com');
+  } catch { return false; }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
