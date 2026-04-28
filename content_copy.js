@@ -9,6 +9,10 @@
 (function () {
   'use strict';
 
+  // Build stamp — bump on every change so we can verify in DevTools that
+  // Chrome is loading the latest version (no cached service-worker copy).
+  console.info('[ProductCopier] content_copy.js build 5.4.0 (image normaliser at paste)');
+
   // ── Selector lists — defined once, used consistently throughout ──────────────
   // Order matters: more specific / higher-quality selectors come first.
   const TITLE_SELECTORS = [
@@ -84,6 +88,14 @@
     '.media-gallery img',
     '.product-gallery__image img',
     '.detail__main img',
+    // Amazon
+    '#landingImage',                         // Amazon main product image
+    '#imgTagWrapperId img',                  // Amazon main image wrapper
+    '#imgBlkFront',                          // Amazon book cover variant
+    '#altImages img',                        // Amazon alt-angle thumbnails
+    '.imageThumbnail img',
+    '.a-button-thumbnail img',
+    '#main-image-container img',
   ];
 
   // Junk URL fragments we never want as a product image.
@@ -110,6 +122,7 @@
   //   4. Plain src — last resort, often a low-res thumbnail
   const LAZY_ATTRS = [
     'data-zoom-image','data-zoom-image-url',
+    'data-old-hires',                                   // Amazon main image attr
     'data-large','data-large_image','data-image-large','data-image_large',
     'data-original','data-full','data-hi-res','data-image',
     'srcset','data-srcset',
@@ -158,6 +171,25 @@
     return candidates[0]?.url ?? null;
   }
 
+  // Amazon-specific: <img> elements carry a JSON map of available sizes:
+  //   data-a-dynamic-image='{"https://.../foo.jpg":[w,h], "https://.../foo2.jpg":[w,h]}'
+  // Pick the URL with the largest area. This is the only way to recover the
+  // hi-res versions from Amazon thumbnails, which only display at 40px.
+  function pickFromAmazonDynamic(img) {
+    const raw = img.getAttribute?.('data-a-dynamic-image');
+    if (!raw) return null;
+    try {
+      const map = JSON.parse(raw);
+      let bestUrl = null, bestArea = 0;
+      for (const url in map) {
+        const dims = map[url];
+        const area = (dims?.[0] || 0) * (dims?.[1] || 0);
+        if (area > bestArea) { bestUrl = url; bestArea = area; }
+      }
+      return bestUrl;
+    } catch { return null; }
+  }
+
   // Returns the best available image URL from an <img> element. Walks all known
   // lazy-load attributes, picks highest-res from srcset, and looks at adjacent
   // <source> elements when the <img> is inside a <picture>.
@@ -171,6 +203,15 @@
         const abs     = toAbs(fromSet);
         if (abs) return abs;
       }
+    }
+
+    // 1.5. Amazon's data-a-dynamic-image JSON — highest-quality variant of the
+    // *same* image angle. Skipped silently on non-Amazon sites where the attr
+    // doesn't exist.
+    const amazonDyn = pickFromAmazonDynamic(img);
+    if (amazonDyn) {
+      const abs = toAbs(amazonDyn);
+      if (abs) return abs;
     }
 
     // 2. Walk known lazy-load attributes (srcset variants are parsed for
@@ -343,8 +384,15 @@
       .replace(/\/s-l\d+(?:-\d+)?(\.[a-z]+)/gi, '/s-NORM$1')
       .replace(/^https?:\/\/[^/]*media-amazon\.com/i,            'amazon-cdn:')
       .replace(/^https?:\/\/[^/]*images-amazon\.com/i,           'amazon-cdn:')
-      .replace(/^https?:\/\/images-na\.ssl-images-amazon\.com/i, 'amazon-cdn:')
+      .replace(/^https?:\/\/images-[a-z]+\.ssl-images-amazon\.com/i, 'amazon-cdn:')
       .replace(/^https?:\/\/[^/]*ebayimg\.com/i,                 'ebay-cdn:');
+    // Final Amazon dedup: collapse any /images/I/<ID>.<anything>.<ext> down
+    // to /images/I/<ID> so that the bare hi-res URL and any sized variant
+    // (._AC_US40_, ._SX425_, etc.) of the same image map to one key.
+    if (base.startsWith('amazon-cdn:/images/I/')) {
+      const idMatch = base.match(/^amazon-cdn:\/images\/I\/([A-Za-z0-9+\-_]+)/);
+      if (idMatch) base = `amazon-cdn:/images/I/${idMatch[1]}`;
+    }
     try {
       const u = new URL(base, location.href);
       // Drop CDN sizing / format / cache-buster parameters used by the major
@@ -363,11 +411,19 @@
   }
 
   // Quality score for two URLs that share the same dedup base. Higher wins.
-  // Prefer non-proxied originals (Jarir cdn-cgi/image, Cloudflare /cdn-cgi/)
-  // and avoid Amazon's tiny `_SS40_` / `_AA40_` thumbnails.
+  // Prefer non-proxied originals (Jarir cdn-cgi/image, Cloudflare /cdn-cgi/),
+  // prefer Amazon "bare" URLs (no size suffix = full-size original) over
+  // Amazon size-variant URLs, and prefer larger explicit dimensions in the URL.
   function urlQuality(url) {
     let score = 0;
     if (!/\/cdn-cgi\//i.test(url)) score += 10;
+    // Amazon: an /images/I/<ID>.jpg URL with no "._AC_..._" or "._S..._"
+    // segment is the original full-size image. Score it well above sized
+    // variants like ._AC_US40_, ._AC_SX425_, ._AC_SL1500_ etc.
+    if (/\/images\/I\/[A-Za-z0-9+\-_]+\.(?:jpe?g|png|webp)$/i.test(url) &&
+        !/\._(?:AC|S[XYL]|SR|SS|UF|UL|US|AA)_/i.test(url)) {
+      score += 50;
+    }
     const sizeMatch = url.match(/[_-](\d{2,4})x\d*[._]/i) ?? url.match(/[wh]idth=(\d{2,4})/i);
     if (sizeMatch) score += Math.min(parseInt(sizeMatch[1], 10), 2000) / 100;
     return score;
@@ -461,6 +517,69 @@
         : toAbs(el.getAttribute('content') || el.getAttribute('href'));
       if (url) add(url, 75);
     });
+
+    // C2. Amazon-specific: the full image gallery (all alt-angle URLs at every
+    // available size) is embedded as a JSON blob inside one or more <script>
+    // tags — typically as `colorImages` / `ImageBlockATF` data. The thumbnails
+    // shown initially are 40 px so the regular DOM walk drops them; this scan
+    // is the only way to recover the hi-res variants without simulating clicks.
+    //
+    // Both raw HTML (`media-amazon.com/images/I/...`) and JSON-encoded
+    // (`media-amazon.com\/images\/I\/...`) forms are matched. The `\/` escapes
+    // are common because Amazon serializes the ImageBlock data via JSON.
+    // Amazon-specific extraction. Amazon's image gallery is a JS-driven mess:
+    //   - <#landingImage> mutates as you hover/click thumbnails
+    //   - Alt-angle thumbnails are 40 px (filtered as too-small)
+    //   - The full ImageBlock data lives in JS state, sometimes serialised
+    //     into <script> bodies with `\/`-escaped slashes
+    //   - URLs appear in src, data-src, srcset, data-a-dynamic-image, plus
+    //     embedded inside JSON in <script> and HTML attributes
+    //
+    // Strategy: don't try to enumerate every container. Just walk the entire
+    // document HTML, regex out every "/images/I/<ID>..." occurrence, extract
+    // the image ID, and synthesize the bare hi-res URL. Amazon serves the
+    // bare URL (no _AC_*_ suffix) as the original full-size photo from any
+    // CDN host. Dedup by image ID handles all the size/host variants.
+    if (/amazon\./i.test(location.hostname)) {
+      // Scope the scan to Amazon's main image-block container so we don't
+      // pick up image IDs from color-variant swatches, related products,
+      // sponsored carousels, "frequently bought together", etc. The full
+      // alt-angle gallery (the only set we want) lives entirely within
+      // #imageBlock or its newer variants. If none exist (rare layout
+      // edge case), fall back to whole-document.
+      const imageBlock =
+          document.querySelector('#imageBlock_feature_div')
+       ?? document.querySelector('#imageBlockNew_feature_div')
+       ?? document.querySelector('#imageBlock')
+       ?? document.querySelector('#booksImageBlock_feature_div')
+       ?? document.querySelector('#main-image-container')
+       ?? document.documentElement;
+      const raw  = imageBlock.outerHTML.replace(/\\\//g, '/');
+      const re   = /https?:\/\/([a-z0-9.-]*amazon[a-z0-9.-]*)\/images\/I\/([A-Za-z0-9+\-_]+)/gi;
+      const seen = new Set();
+      let added  = 0;
+      let m;
+      while ((m = re.exec(raw)) !== null) {
+        const host = m[1];
+        const id   = m[2];
+        if (seen.has(id)) continue;
+        seen.add(id);
+        add(`https://${host}/images/I/${id}.jpg`, 95);
+        added++;
+      }
+      console.info(`[ProductCopier] Amazon: scanned ${seen.size} unique image IDs from ${imageBlock === document.documentElement ? 'WHOLE DOC (no #imageBlock)' : '#' + imageBlock.id}, added ${added}`);
+
+      // Also pick up data-a-dynamic-image (largest variant per element) and
+      // data-old-hires — these surface even if the URL never appears in src.
+      document.querySelectorAll('img[data-a-dynamic-image]').forEach(img => {
+        const u = pickFromAmazonDynamic(img);
+        if (u) { const abs = toAbs(u); if (abs) add(abs, 92); }
+      });
+      document.querySelectorAll('img[data-old-hires]').forEach(img => {
+        const abs = toAbs(img.getAttribute('data-old-hires'));
+        if (abs) add(abs, 92);
+      });
+    }
 
     // D. Description images (bundle products often use these as main visuals)
     // Reuses DESCRIPTION_SELECTORS so we never have a hard-coded duplicate.

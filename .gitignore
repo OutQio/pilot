@@ -19,3 +19,6 @@ build/
 
 # Playwright MCP scratch dir (test snapshots / console logs)
 .playwright-mcp/
+
+# Claude Code worktree state (per-machine, never tracked)
+.claude/

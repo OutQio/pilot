@@ -95,13 +95,13 @@
     <div class="section-title">⚙️ إعدادات الأداء</div>
 
     <label class="check-label">
-      <input type="checkbox" id="useAI"/>
-      تفعيل Gemini عند توفر المفتاح
-    </label>
-
-    <label class="check-label">
       <input type="checkbox" id="embedDescImages"/>
       تضمين صور الوصف (يمنع الصور المعطوبة في سلة)
+    </label>
+
+    <label class="check-label" title="قص الخلفية البيضاء/الشفافة، توسيط المنتج، إضافة هامش موحد، وحفظ بصيغة WebP">
+      <input type="checkbox" id="normalizeImages"/>
+      🎨 تطبيق نمط الصور (قص + مربع + WebP)
     </label>
 
     <label for="imgLimit">الحد الأقصى لصور المنتج: <strong id="maxImgVal">8</strong></label>

@@ -11,8 +11,8 @@ const btnSave          = document.getElementById('btnSave');
 const btnTest          = document.getElementById('btnTest');
 const apiStatus        = document.getElementById('apiStatus');
 const toggleEye        = document.getElementById('toggleEye');
-const useAICheck       = document.getElementById('useAI');
 const embedDescCheck   = document.getElementById('embedDescImages');
+const normalizeCheck   = document.getElementById('normalizeImages');
 const imgLimitRange    = document.getElementById('imgLimit');
 const imgLimitVal      = document.getElementById('maxImgVal');
 const btnSaveSettings  = document.getElementById('btnSaveSettings');
@@ -51,8 +51,8 @@ async function init() {
   if (geminiKey) apiKeyInput.value = geminiKey;
 
   const s = settings ?? {};
-  useAICheck.checked     = s.useAI           !== false;
   embedDescCheck.checked = s.embedDescImages !== false;
+  normalizeCheck.checked = s.normalizeImages !== false;
   imgLimitRange.value    = s.imgLimit        ?? 8;
   imgLimitVal.textContent = imgLimitRange.value;
 
@@ -129,8 +129,8 @@ btnTest.addEventListener('click', async () => {
 btnSaveSettings.addEventListener('click', async () => {
   await chrome.storage.local.set({
     settings: {
-      useAI           : useAICheck.checked,
       embedDescImages : embedDescCheck.checked,
+      normalizeImages : normalizeCheck.checked,
       imgLimit        : parseInt(imgLimitRange.value, 10),
     },
   });
