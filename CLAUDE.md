@@ -2,8 +2,10 @@
 
 Project memory for Claude Code. **Read this first.**
 
-For deep architectural detail, defer to [`HANDOFF.md`](./HANDOFF.md). This file is the
-fast-loading summary of what to know before touching code.
+For deep architectural detail, defer to [`HANDOFF.md`](./HANDOFF.md). For
+the contributing rules in human-readable form, see
+[`CONTRIBUTING.md`](./CONTRIBUTING.md). This file is the fast-loading
+summary of what to know before touching code.
 
 ---
 
@@ -171,7 +173,68 @@ done
 
 ---
 
-## Sensitive material — don't commit
+## Forced GitHub interaction rules
+
+These are the rules **the user expects Claude Code to follow without being
+asked.** Branch protection on `main` enforces them at the GitHub level, but
+following them locally avoids surprise rejections.
+
+### Branching
+1. **Never push directly to `main`.** Always go through `staging` + a PR.
+   The flow used in this repo's history:
+   ```
+   git push origin <local-branch>:staging
+   gh pr create --base main --head staging --title "..." --body "..."
+   gh pr merge <PR#> --merge --delete-branch=false
+   ```
+2. **Never `--force` push to `main` or `staging`.** Both are shared.
+3. **Never amend or rebase commits already pushed to a shared branch.**
+
+### Pre-merge — every PR must
+1. Pass `npm run check` locally before pushing (`syntax` + `lint` +
+   `check:versions`). The CI runs the same battery on GitHub.
+2. Pass all 4 CI jobs (`syntax`, `lint`, `versions`, `manifest`).
+3. Bump the version in three places (`manifest.json`, `background.js`
+   build stamp, `content_copy.js` build stamp) — the `versions` CI job
+   fails the PR otherwise.
+4. Add a `CHANGELOG.md` entry under the new version.
+5. Use the PR template at `.github/PULL_REQUEST_TEMPLATE.md` (auto-populated).
+
+### Commit messages
+- Use [Conventional Commits](https://www.conventionalcommits.org/) prefix
+  (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`, `perf:`).
+- First line < 72 chars, present tense, no trailing period.
+- Body explains the *why*, not the *what* (the diff already tells you what).
+- Co-authorship trailer for AI assistance:
+  `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+
+### Branch naming
+| Prefix | Use |
+|---|---|
+| `feat/<thing>` | new feature |
+| `fix/<thing>` | bug fix |
+| `docs/<thing>` | docs only |
+| `chore/<thing>` | dependency / repo plumbing |
+| `refactor/<thing>` | code shape change, no behaviour change |
+
+### When the user says "push to GitHub"
+The expected sequence — you've followed this multiple times in this repo's
+history, do it again unless asked otherwise:
+1. `git status` to see what changed
+2. Stage explicit paths (never `git add .` or `git add -A` — risks
+   committing the user's API key or other secrets)
+3. Commit with a Conventional Commits message + the Claude trailer
+4. `git push origin main:staging` (push the local main to the remote
+   staging branch — assumes you've been editing on `main` locally; if not,
+   adjust accordingly)
+5. `gh pr create --base main --head staging --title ... --body ...` with a
+   well-written PR description that follows `.github/PULL_REQUEST_TEMPLATE.md`
+6. `gh pr merge <PR#> --merge --delete-branch=false` (keep the staging
+   branch around for the next round)
+7. Tell the user the PR URL and the new merge-commit SHA on `main`
+
+### Sensitive material — never commit
+
 
 - The user's Gemini API key (`AIza...`). It's stored at runtime in
   `chrome.storage.local.geminiKey` and only sent over the wire as the

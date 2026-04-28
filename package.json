@@ -1,0 +1,24 @@
+{
+  "name": "product-copier-salla",
+  "version": "5.4.9",
+  "private": true,
+  "type": "module",
+  "description": "Chrome MV3 extension that copies products from any e-commerce page into a Salla store, with optional Gemini-powered Arabic rewriting and brand-template image normalisation.",
+  "homepage": "https://github.com/OutQio/pilot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OutQio/pilot.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "syntax": "for f in background.js content_copy.js popup.js options.js paste_salla.js; do node --check \"$f\"; done",
+    "check:versions": "node .github/scripts/check-version-stamps.mjs",
+    "check": "npm run syntax && npm run lint && npm run check:versions"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "globals": "^15.14.0"
+  }
+}

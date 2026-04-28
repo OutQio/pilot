@@ -10,6 +10,7 @@
 // Standard DOM selectors like input[placeholder="..."] do NOT work here.
 // Each component requires a specific technique documented inline.
 
+// eslint-disable-next-line no-unused-vars -- called by popup.js via chrome.scripting.executeScript
 function pasteIntoSalla(titleText, descHtml, imagesBase64) {
   'use strict';
 

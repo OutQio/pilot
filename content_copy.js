@@ -11,7 +11,7 @@
 
   // Build stamp — bump on every change so we can verify in DevTools that
   // Chrome is loading the latest version (no cached service-worker copy).
-  console.info('[ProductCopier] content_copy.js build 5.4.0 (image normaliser at paste)');
+  console.info('[ProductCopier] content_copy.js build 5.4.9 (paste-time rewrite, image normaliser, hardened JSON parser)');
 
   // ── Selector lists — defined once, used consistently throughout ──────────────
   // Order matters: more specific / higher-quality selectors come first.

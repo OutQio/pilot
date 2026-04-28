@@ -1,0 +1,25 @@
+# CODEOWNERS — auto-requests review when paths change.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-configuration/customizing-your-repository/about-code-owners
+
+# Default owner for everything.
+*                                      @OutQio
+
+# Anything that affects how the extension behaves at runtime.
+/background.js                          @OutQio
+/content_copy.js                        @OutQio
+/paste_salla.js                         @OutQio
+/popup.*                                @OutQio
+/options.*                              @OutQio
+/manifest.json                          @OutQio
+
+# CI / repo plumbing — keep tight oversight here.
+/.github/                               @OutQio
+/eslint.config.js                       @OutQio
+/package.json                           @OutQio
+/package-lock.json                      @OutQio
+
+# Docs are lower-stakes but still want a glance.
+/README.md                              @OutQio
+/CLAUDE.md                              @OutQio
+/HANDOFF.md                             @OutQio
+/CHANGELOG.md                           @OutQio
