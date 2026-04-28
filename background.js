@@ -31,13 +31,13 @@ const LIMITS = Object.freeze({
   descBatchSize     :  2,         // parallel description-image fetches
 });
 
-// ── Image normalisation defaults (matches iblackstores.com brand style) ──────
+// ── Image normalisation defaults (matches a typical Salla store brand style) ──────
 // Square white-background canvas, product auto-cropped to its bounding box,
 // height-fit into the canvas with a uniform 10% margin on each side. Combined
 // with the height-fit scaling below, this gives every product a shared
-// top/bottom baseline (matching the alignment in iblackstores listings)
-// while still letting the product fill ~80% of the canvas — much like the
-// real iblackstores product photos. The 3×3 alignment grid in the brand
+// top/bottom baseline (matching the alignment most Salla listings expect)
+// while still letting the product fill ~80% of the canvas — much like a
+// typical Salla product photo. The 3×3 alignment grid in the brand
 // template is for rule-of-thirds *visual* alignment of the product's
 // features, not a hard cage that the product must sit inside.
 //
@@ -117,7 +117,7 @@ async function fetchAsBase64(url, maxBytes, timeoutMs) {
 // canvas, white background, product centred with a uniform margin, in the same
 // modern format. Customer-facing CDN images from Amazon/eBay/AliExpress vary
 // wildly in aspect ratio, padding, and format (JPG/PNG/etc.). This function
-// normalises any input image to match the iblackstores brand defaults.
+// normalises any input image to match the brand defaults configured below.
 //
 // Algorithm:
 //   1. createImageBitmap(blob) — Chrome's fast image decoder, works in SW
@@ -180,7 +180,7 @@ async function normalizeImageBlob(input, opts = {}, label = '') {
     const inner = o.size * (1 - 2 * o.paddingPct / 100);
     // Height-prefer scaling so every normalised image has the SAME vertical
     // extent — which makes them line up on shared top + bottom baselines in
-    // the iblackstores listing grid. Wide products (>1:1 aspect) fall back to
+    // a typical Salla listing grid. Wide products (>1:1 aspect) fall back to
     // width-fit so they don't overflow the canvas; this only affects edge
     // cases like sound bars / monitors / car-grilles, while the common
     // square / portrait product case stays height-normalised.

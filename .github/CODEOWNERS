@@ -21,5 +21,6 @@
 # Docs are lower-stakes but still want a glance.
 /README.md                              @OutQio
 /CLAUDE.md                              @OutQio
-/HANDOFF.md                             @OutQio
+/CONTRIBUTING.md                        @OutQio
 /CHANGELOG.md                           @OutQio
+/SECURITY.md                            @OutQio

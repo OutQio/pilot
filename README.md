@@ -4,9 +4,9 @@ Chrome extension that copies a product from any e-commerce page and pastes it
 into Salla's `Add Product` form — with optional Gemini-powered Arabic rewriting
 and brand-template image normalisation.
 
-> Built for the [iblackstores.com](https://iblackstores.com) data-entry team.
-> Open-source so others running Salla stores can fork, adapt the rewrite rules
-> + image template, and ship their own.
+> Originally built for one Salla store's data-entry team. Open-sourced so
+> any team running a Salla store can fork, adapt the rewrite rules + image
+> template to their own brand, and ship their own.
 
 **Current version:** 5.4.9 · **Manifest:** MV3 · **Min Chrome:** 103
 
@@ -88,8 +88,23 @@ Open the extension's **Options** page. Three text areas:
 3. **أمثلة من متجرك** — 2-3 real product examples (title + description) from
    your store, pasted as-is. Gemini learns the voice from these.
 
-iblackstores' specific rules + examples are documented in
-[`HANDOFF.md` § 7](./HANDOFF.md#7-rewrite-rules--examples).
+**Worked example (Khaleeji-Arabic store style):**
+
+- **Title:** `<البراند بالعربية> - <نوع المنتج + المواصفة الرئيسية> - <اللون>`
+- **Description:** 4-5 sections — bold title repeat, marketing intro
+  paragraph, bullet list under `المميزات الرئيسية:`, optional bullet list
+  under `المواصفات التقنية:` (`key: value.` format), closing paragraph
+  under `ليش ممكن تشتريه؟`.
+- **Tone:** Saudi / Khaleeji colloquial — `ليش`, `يبغى`, `اللي`, `تجي`,
+  `تخليك`, `تقدر`, `عشان`, `وين`.
+- **No** emoji, **no** prices, **no** comparisons to other stores.
+- Tech terms transliterated to Arabic (`تايب سي`, `أموليد`, `ماج سيف`),
+  but model numbers + standards stay English (`Qi2`, `IP68`, `GPS`,
+  `AMOLED`).
+
+To derive your own ruleset: sample 3-5 product pages from your store's
+public catalog, observe the recurring patterns, paste them into the
+example textarea verbatim, and write the rules in plain Arabic above.
 
 ---
 
@@ -105,14 +120,35 @@ iblackstores' specific rules + examples are documented in
 
 ---
 
+## Live-tested platforms
+
+| Site | Status | Notes |
+|---|---|---|
+| **Amazon (incl. amazon.sa)** | ✅ | Whole-page scan scoped to `#imageBlock_feature_div`. Synthesises bare `<id>.jpg` URLs from each visible thumbnail — recovers all alt-angle images without simulating clicks. |
+| **eBay** | ✅ | `s-l<n>` size-suffix dedup; description from `og:description` fallback. |
+| **Shopify** (Allbirds tested) | ✅ | `<picture><source srcset>` parsed; `_500x500` dedup. Recommendation carousels filtered via `pointsToOtherProduct`. |
+| **WooCommerce** | ✅ | `data-large_image` attribute supported; srcset highest-`w` wins. |
+| **Generic Salla / Magento / BigCommerce** | ✅ | Standard JSON-LD + microdata + selector chain. |
+| Various KSA stores (tested live) | ✅ | All produce clean title + description + images. |
+| AliExpress, Shein | ⚠️ | Anti-bot blocks the scrape in headless test browsers. Works in a normal Chrome user session. |
+
+The DOM scraper has 4 layers (gallery selectors → JSON-LD → microdata →
+full-page fallback) plus a 5th Amazon-specific path. URLs go through
+`computeImageBase` for canonicalisation (host normalisation, size-variant
+stripping, query-param dropping) and `urlQuality` to prefer non-proxied
+originals over CDN-resized versions.
+
+---
+
 ## Documentation
 
 | Doc | When to read it |
 |---|---|
-| [`README.md`](./README.md) | You are here. Install + usage. |
-| [`HANDOFF.md`](./HANDOFF.md) | Pick up the codebase cold. Architecture, file map, all config knobs, version history, known caveats, symptom→fix table. |
-| [`CLAUDE.md`](./CLAUDE.md) | Auto-loaded by [Claude Code](https://claude.com/claude-code). Fast project memory: invariants to preserve, common tasks, where things tend to break. |
+| [`README.md`](./README.md) | You are here. Install + usage + worked example + live-tested sites. |
+| [`CLAUDE.md`](./CLAUDE.md) | Auto-loaded by [Claude Code](https://claude.com/claude-code). Fast project memory: file map, invariants to preserve, common tasks, symptom→fix table. |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Required rules for contributing — branching, commit format, version-bump, pre-merge checks. |
 | [`CHANGELOG.md`](./CHANGELOG.md) | What changed in each version. |
+| [`SECURITY.md`](./SECURITY.md) | How to report a vulnerability. |
 
 ---
 
