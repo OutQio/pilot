@@ -175,6 +175,49 @@ done
 
 ---
 
+## End-user playbook — when the user says X, do Y
+
+This repo's primary users are **non-technical store owners** who'll paste
+the GitHub URL into Claude.ai (web app) or open the cloned folder with
+Claude Code. Either way, treat them as someone who's never seen a
+Chrome `chrome://extensions` page, never used the dev console, and
+doesn't speak in jargon. Ask one question at a time. Wait for confirmation
+before moving on. Don't dump walls of code at them.
+
+When they say something like the left column, do the thing in the right
+column. (Slash commands listed are project-level — they live in
+`.claude/commands/` and Claude Code auto-discovers them. The Claude.ai
+web app doesn't run slash commands; for those users, do the procedure
+described in the slash command's body manually.)
+
+| User says (paraphrased) | What to do |
+|---|---|
+| "Set me up" / "Help me install this" / "I just downloaded this, now what?" | Run **`/setup`** (Claude Code) or follow `.claude/commands/setup.md` step-by-step (Claude.ai). 6 steps, ask for confirmation between each. |
+| "Make this work for my store at &lt;url&gt;" / "Configure rules for my brand" / "Write the rewrite rules for my products" | Run **`/configure-store &lt;url&gt;`** (Claude Code) or follow `.claude/commands/configure-store.md` (Claude.ai). Visit the URL with a browser tool, sample 3-5 products, derive title + description rules, generate 2-3 examples in their actual voice, give them paste-ready blocks. |
+| "Test it on this product: &lt;url&gt;" / "Try this product to make sure it works" | Run **`/test-on &lt;url&gt;`** (Claude Code) or `.claude/commands/test-on.md` (Claude.ai). 6-step manual smoke test through Copy + Paste. |
+| "Something's wrong" / "It doesn't work" / "I'm getting an error" | Run **`/troubleshoot &lt;symptom&gt;`** (Claude Code) or `.claude/commands/troubleshoot.md`. Triage: check version is current → match symptom to the known list → request diagnostics if no match. |
+| "Cut a release" / "Push a new version" / "Ship this change" | Run **`/release &lt;patch\|minor\|major&gt;`** (Claude Code only — has side effects). Bump version in three places, update CHANGELOG, run `npm run check`, commit, push, PR, wait for CI green, merge. |
+| "Show me what's new" / "What changed lately?" | Read `CHANGELOG.md` and summarise the latest 1-2 entries in plain English. |
+| "How does the rewrite work?" / "What does this tool do?" | Read `README.md` § "Live-tested platforms" + § "Configure for your store". Summarise without jargon. Don't recite version history at them. |
+
+### Critical phrasing rules
+1. **Never assume technical context.** "Open chrome://extensions" → spell
+   out "open a new Chrome tab and type `chrome://extensions` in the
+   address bar". "Reload the extension" → "click the 🔄 icon on the
+   extension's card on that page".
+2. **One question at a time.** If you need three confirmations, ask them
+   in three turns, not one numbered list.
+3. **Always confirm before destructive actions.** Pushing to GitHub,
+   editing their saved options, removing/re-adding the extension — pause
+   and confirm.
+4. **Show them what success looks like.** "After you click Test, you
+   should see a green message saying `✅ مفتاح Gemini يعمل! تم الحفظ.`"
+   — describe the expected outcome so they know how to verify.
+5. **Tell them what NOT to share with you.** Their Gemini API key in
+   particular. They paste it into the extension, never into chat.
+
+---
+
 ## Forced GitHub interaction rules
 
 These are the rules **the user expects Claude Code to follow without being
