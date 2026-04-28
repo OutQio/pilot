@@ -100,27 +100,36 @@ const pasteBar = new ProgressBar({
   label: document.getElementById('pasteProgressLabel'),
 });
 
-const copyStatus  = document.getElementById('copyStatus');
-const pasteStatus = document.getElementById('pasteStatus');
-const aiToggle    = document.getElementById('aiToggle');
+const copyStatus     = document.getElementById('copyStatus');
+const pasteStatus    = document.getElementById('pasteStatus');
+const rewriteToggle  = document.getElementById('rewriteToggle');
+const rewriteRow     = document.getElementById('rewriteRow');
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Initialise on popup open
 // ══════════════════════════════════════════════════════════════════════════════
 async function init() {
-  const { productData, settings, geminiKey } =
-    await chrome.storage.local.get(['productData', 'settings', 'geminiKey']);
+  const { productData, geminiKey, rewriteRules } =
+    await chrome.storage.local.get(['productData', 'geminiKey', 'rewriteRules']);
 
   if (productData) {
     showPreview(productData);
     setPasteReady(true);
   }
 
-  // AI toggle: enabled only when a key exists AND useAI is not explicitly off
-  aiToggle.checked = !!(geminiKey && settings?.useAI !== false);
+  // Rewrite toggle: only enabled when BOTH a Gemini key exists AND there are
+  // saved rewrite rules. Default-on if the user has enabled rewrite in options;
+  // they can flip it per-paste from the popup.
+  const hasRules = !!(rewriteRules && (rewriteRules.titleRules || rewriteRules.descRules || rewriteRules.examples));
+  const canRewrite = !!geminiKey && hasRules;
+  rewriteToggle.checked  = canRewrite && rewriteRules?.enabled !== false;
+  rewriteToggle.disabled = !canRewrite;
   if (!geminiKey) {
-    aiToggle.disabled     = true;
-    aiToggle.parentElement.title = 'أضف مفتاح API في الإعدادات';
+    rewriteRow.classList.add('disabled');
+    rewriteRow.title = 'أضف مفتاح Gemini في الإعدادات لتفعيل إعادة الكتابة';
+  } else if (!hasRules) {
+    rewriteRow.classList.add('disabled');
+    rewriteRow.title = 'أضف قواعد إعادة الكتابة في الإعدادات لتفعيل هذا الخيار';
   }
 }
 init();
@@ -130,7 +139,10 @@ document.getElementById('btnSettings').addEventListener('click', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// COPY
+// COPY  — always DOM-based now. Gemini was removed from the copy step because
+// its only useful job there (cleaner Arabic title/description) is more
+// appropriate as a paste-time decision: the user often wants to copy from
+// several stores in a row and only rewrite when actually pasting.
 // ══════════════════════════════════════════════════════════════════════════════
 document.getElementById('btnCopy').addEventListener('click', async () => {
   clearStatus(copyStatus);
@@ -138,22 +150,13 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
   copyBar.hide();
 
   try {
-    const { settings, geminiKey, rewriteRules } =
-      await chrome.storage.local.get(['settings', 'geminiKey', 'rewriteRules']);
-
-    const useAI          = aiToggle.checked && !!geminiKey;
+    const { settings } = await chrome.storage.local.get(['settings']);
     const imgLimit       = settings?.imgLimit       ?? 8;
     const embedDescImgs  = settings?.embedDescImages !== false;
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    // ── Extract product data (AI or DOM) ──────────────────────────────────────
-    let productData;
-    if (useAI) {
-      productData = await extractWithAI(tab, geminiKey, imgLimit, rewriteRules ?? null);
-    } else {
-      productData = await extractWithDOM(tab, imgLimit);
-    }
+    const productData = await extractWithDOM(tab, imgLimit);
 
     if (!productData?.title) {
       copyBar.hide();
@@ -177,10 +180,9 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
     showPreview(productData);
     setPasteReady(true);
 
-    const aiNote = productData.aiExtracted ? ' (AI 🤖)' : '';
     setStatus(
       copyStatus,
-      `✅ تم النسخ${aiNote}!\n` +
+      `✅ تم النسخ!\n` +
       `📷 ${productData.images?.length ?? 0} صورة\n` +
       `📝 الوصف: ${productData.description ? '✓' : '✗'}`,
       'success'
@@ -194,61 +196,6 @@ document.getElementById('btnCopy').addEventListener('click', async () => {
     setTimeout(() => copyBar.hide(), 1500);
   }
 });
-
-// ── AI extraction path (hybrid) ───────────────────────────────────────────────
-// Why hybrid?
-//   The DOM scraper (content_copy.js) is rock-solid for image URLs because it
-//   queries the live DOM and validates extensions/CDN patterns. Gemini, in
-//   contrast, regularly hallucinates image URLs on complex pages — most
-//   visibly on Amazon, where it confuses CSS-sprite identifiers like
-//   "11WsGYSItxL._RC|01DE6WSvLKL.css,..." for product images.
-//
-// So we always run the DOM extractor for images, and use Gemini purely for
-// text quality (translation + Arabic rewriting + cleaner descriptions).
-async function extractWithAI(tab, geminiKey, imgLimit, rewriteRules) {
-  const willRewrite = rewriteRules?.enabled;
-  copyBar.show(20, '🔍 جاري تحليل الصفحة...');
-
-  // 1. DOM extraction first — gives us reliable images regardless of AI outcome
-  const domResult = await extractWithDOM(tab, imgLimit);
-
-  copyBar.show(40, willRewrite ? '✍️ جاري الاستخراج وإعادة الكتابة...' : '🤖 جاري تحليل الصفحة...');
-
-  // 2. Pull page HTML for Gemini text processing
-  const [{ result: pageHtml }] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func  : () => document.documentElement.outerHTML,
-  });
-
-  copyBar.show(50, willRewrite ? '✍️ Gemini يعيد كتابة المنتج...' : '🤖 Gemini يعالج البيانات...');
-
-  const aiResult = await chrome.runtime.sendMessage({
-    action: 'aiExtract', html: pageHtml, url: tab.url, apiKey: geminiKey, rewriteRules,
-  });
-
-  if (aiResult?.error) {
-    // Soft fallback — inform the user but don't abort. DOM result still useful.
-    setStatus(copyStatus, `⚠️ AI فشل (${aiResult.error})، استخدام نتيجة DOM`, 'warn');
-    return domResult;
-  }
-
-  copyBar.show(70, '✅ AI أنهى المعالجة...');
-
-  // 3. Merge: AI for text (when non-empty and meaningful), DOM for images.
-  //    Guards against AI returning the title duplicated as description, which
-  //    happens when the page's real description isn't in the first 12k chars.
-  const aiTitle = aiResult.title?.trim();
-  const aiDesc  = aiResult.description?.trim();
-  const aiDescIsJustTitle = aiDesc && aiTitle && aiDesc.replace(/<[^>]+>/g, '').trim() === aiTitle;
-  return {
-    title       : aiTitle || domResult?.title || '',
-    description : (aiDesc && !aiDescIsJustTitle) ? aiDesc : (domResult?.description || ''),
-    images      : domResult?.images ?? [],
-    aiExtracted : true,
-    aiRewritten : aiResult.aiRewritten,
-    sourceUrl   : tab.url,
-  };
-}
 
 // ── DOM extraction path ───────────────────────────────────────────────────────
 async function extractWithDOM(tab, imgLimit) {
@@ -298,15 +245,87 @@ document.getElementById('btnPaste').addEventListener('click', async () => {
   pasteBtn.busy('جاري اللصق...');
   pasteBar.hide();
 
+  // Tracks the outcome of the optional Gemini rewrite step so the final
+  // paste status can show whether rewriting actually ran. Without this we'd
+  // overwrite a "rewrite failed" warning with the "paste OK" success message
+  // and the user would never see the failure reason.
+  let rewriteOutcome = 'skipped';   // 'skipped' | 'ok' | 'failed:<reason>'
+
   try {
-    // ── Fetch product images as base64 ────────────────────────────────────────
+    // ── (Optional) Rewrite title + description with Gemini before pasting ───
+    // The toggle is only enabled in init() when both a Gemini key AND saved
+    // rewrite rules are present, so we don't need to re-validate here. We
+    // pass the already-extracted title+description (not the page HTML), which
+    // makes the prompt ~95% smaller than the old extract+rewrite prompt.
+    let title = productData.title;
+    let description = productData.description;
+    if (rewriteToggle.checked && !rewriteToggle.disabled) {
+      pasteBar.show(10, '✍️ Gemini يعيد كتابة المنتج بأسلوب متجرك...');
+      const { geminiKey, rewriteRules } =
+        await chrome.storage.local.get(['geminiKey', 'rewriteRules']);
+      console.info('[ProductCopier] rewrite request:', {
+        hasKey       : !!geminiKey,
+        rulesEnabled : !!rewriteRules?.enabled,
+        hasTitleRules: !!rewriteRules?.titleRules,
+        hasDescRules : !!rewriteRules?.descRules,
+        hasExamples  : !!rewriteRules?.examples,
+        title        : productData.title?.slice(0, 80),
+        descChars    : productData.description?.length ?? 0,
+      });
+      let ai;
+      try {
+        ai = await chrome.runtime.sendMessage({
+          action: 'aiRewrite',
+          title       : productData.title,
+          description : productData.description,
+          sourceUrl   : productData.sourceUrl,
+          apiKey      : geminiKey,
+          rewriteRules,
+        });
+      } catch (e) {
+        // sendMessage itself can throw when the SW disconnects mid-flight.
+        ai = { error: e.message };
+      }
+      console.info('[ProductCopier] rewrite response:', ai && {
+        hasTitle: !!ai.title,
+        titleChars: ai.title?.length,
+        descChars: ai.description?.length,
+        error: ai.error,
+      });
+
+      // ai === undefined happens when the service worker is stale (old build
+      // that doesn't recognise 'aiRewrite') and silently drops the message.
+      // Treat any of {undefined, missing title, error field} as a soft failure
+      // and fall back to the original DOM data.
+      if (!ai || ai.error || !ai.title) {
+        const reason = ai?.error
+          || (ai === undefined ? 'الخدمة لم تستجب — أعد تحميل الإضافة' : 'استجابة فارغة');
+        rewriteOutcome = `failed:${reason}`;
+        console.warn('[ProductCopier] rewrite failed:', reason);
+      } else {
+        title = ai.title.trim() || title;
+        description = ai.description?.trim() || description;
+        rewriteOutcome = 'ok';
+        console.info('[ProductCopier] rewrite OK — new title:', title.slice(0, 80));
+      }
+    }
+
+    // ── Fetch + normalise product images ─────────────────────────────────────
     let imagesBase64 = [];
     if (productData.images?.length) {
-      pasteBar.show(20, `⬇️ تحميل ${productData.images.length} صورة...`);
+      const { settings } = await chrome.storage.local.get(['settings']);
+      const normalize = settings?.normalizeImages !== false;     // default ON
+      pasteBar.show(30,
+        normalize
+          ? `🎨 تجهيز ${productData.images.length} صورة بأسلوب متجرك...`
+          : `⬇️ تحميل ${productData.images.length} صورة...`
+      );
       imagesBase64 = await chrome.runtime.sendMessage({
-        action: 'fetchImages', urls: productData.images,
+        action   : 'fetchImages',
+        urls     : productData.images,
+        normalize,
       });
-      pasteBar.show(60, `✅ تم تحميل ${imagesBase64.length} صورة`);
+      pasteBar.show(60, `✅ تم تجهيز ${imagesBase64.length} صورة`);
     }
 
     // ── Inject pasteIntoSalla from paste_salla.js then call it ───────────────
@@ -318,16 +337,28 @@ document.getElementById('btnPaste').addEventListener('click', async () => {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func  : (t, d, imgs) => pasteIntoSalla(t, d, imgs),
-      args  : [productData.title, productData.description, imagesBase64],
+      args  : [title, description, imagesBase64],
     });
 
     pasteBar.show(100, '✅ اكتمل!');
 
-    if (result?.success) {
-      setStatus(pasteStatus, `✅ تم اللصق!\n${result.message}`, 'success');
-    } else {
-      setStatus(pasteStatus, `⚠️ اكتمل مع تنبيهات:\n${result?.message ?? ''}`, 'warn');
-    }
+    // Build a rewrite-status line that's preserved regardless of paste outcome
+    // — so a silent rewrite failure can never hide behind a paste-OK message.
+    const rewriteLine =
+      rewriteOutcome === 'ok'      ? '✍️ تم تطبيق إعادة الكتابة' :
+      rewriteOutcome.startsWith('failed:')
+        ? `⚠️ لم تتم إعادة الكتابة: ${rewriteOutcome.slice('failed:'.length)}`
+        : '';
+
+    const headLine = result?.success ? `✅ تم اللصق!` : `⚠️ اكتمل مع تنبيهات:`;
+    const tone     = result?.success
+      ? (rewriteOutcome.startsWith('failed:') ? 'warn' : 'success')
+      : 'warn';
+    setStatus(
+      pasteStatus,
+      [headLine, rewriteLine, result?.message].filter(Boolean).join('\n'),
+      tone
+    );
 
   } catch (err) {
     console.error('[Paste]', err);

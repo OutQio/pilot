@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Product Copier → Salla (AI)",
-  "version": "5.0.0",
+  "version": "5.4.9",
   "description": "انسخ المنتج من أي متجر والصقه في سلة مع دعم Gemini AI",
   "minimum_chrome_version": "103",
   "permissions": [

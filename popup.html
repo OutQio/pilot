@@ -17,17 +17,6 @@
   </div>
 </div>
 
-<div class="ai-row">
-  <div class="ai-label">
-    <span class="ai-badge">AI</span>
-    استخراج ذكي بـ Gemini
-  </div>
-  <label class="ai-toggle" title="تفعيل/إيقاف استخراج Gemini">
-    <input type="checkbox" id="aiToggle"/>
-    <span class="ai-slider"></span>
-  </label>
-</div>
-
 <div class="body">
 
   <!-- STEP 1: COPY -->
@@ -63,6 +52,16 @@
     <p class="salla-hint">
       افتح <a href="https://s.salla.sa/products/new" target="_blank" rel="noopener">صفحة إضافة منتج في سلة</a> ثم اضغط اللصق.
     </p>
+    <label class="rewrite-row" id="rewriteRow" title="تفعيل/إيقاف إعادة كتابة العنوان والوصف بأسلوب متجرك قبل اللصق">
+      <span class="rewrite-label">
+        <span class="ai-badge">AI</span>
+        ✍️ إعادة كتابة بأسلوب متجرك
+      </span>
+      <span class="ai-toggle">
+        <input type="checkbox" id="rewriteToggle"/>
+        <span class="ai-slider"></span>
+      </span>
+    </label>
     <button id="btnPaste" class="btn btn-paste" disabled>
       <span id="pasteSpinner" class="spinner" aria-hidden="true"></span>
       <span id="pasteIcon">✅</span>
@@ -82,7 +81,7 @@
 
 </div>
 
-<footer class="footer">Product Copier for Salla v5.0</footer>
+<footer class="footer">Product Copier for Salla v5.3</footer>
 
 <script src="popup.js"></script>
 </body>
