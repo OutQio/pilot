@@ -12,6 +12,45 @@ and brand-template image normalisation.
 
 ---
 
+## 🤖 Don't read all this — let Claude do it for you
+
+This repo is **designed to be used through Claude.** You don't need to be
+technical. You don't need to read this README front to back. You just
+need to:
+
+### Option A — Claude.ai (the web app)
+
+1. Open <https://claude.ai>
+2. Paste this URL in the chat: `https://github.com/OutQio/pilot`
+3. Tell Claude what you want, in plain English. Suggested first prompts:
+
+   <table>
+   <tr><th>What you want</th><th>What to type</th></tr>
+   <tr><td>First-time install</td><td><code>Set me up with this Chrome extension. Walk me through every step.</code></td></tr>
+   <tr><td>Configure for your own store</td><td><code>My store is at https://&lt;your-store&gt;. Look at it, sample some products, and write me the rewrite rules.</code></td></tr>
+   <tr><td>Test it works</td><td><code>Test it on this product: https://&lt;a-product-url&gt;. Walk me through it.</code></td></tr>
+   <tr><td>Fix a problem</td><td><code>Something isn't working: &lt;describe what you see&gt;. Help me figure it out.</code></td></tr>
+   </table>
+
+   Claude reads the repo's [`CLAUDE.md`](./CLAUDE.md) automatically and
+   knows exactly how to help with each of those.
+
+### Option B — Claude Code (the desktop / terminal app)
+
+1. Clone the repo: `git clone https://github.com/OutQio/pilot.git`
+2. Open the folder with [Claude Code](https://claude.com/claude-code)
+3. Type one of the project-level slash commands the repo ships with:
+   - `/setup` — full first-time setup walkthrough
+   - `/configure-store <storefront-url>` — derive rewrite rules from your live catalog
+   - `/test-on <product-url>` — copy + paste smoke test
+   - `/troubleshoot <symptom>` — diagnostic flow
+   - `/release <patch|minor|major>` — ship a new version (for maintainers)
+
+That's it. The rest of this README is for people who want to read the code
+themselves.
+
+---
+
 ## What it does
 
 1. **Copy** — Scrape the title, description, and product images from any

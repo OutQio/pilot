@@ -20,5 +20,9 @@ build/
 # Playwright MCP scratch dir (test snapshots / console logs)
 .playwright-mcp/
 
-# Claude Code worktree state (per-machine, never tracked)
-.claude/
+# Claude Code per-machine state — ignore everything except the slash
+# commands and subagents that should be shared with all forks.
+.claude/*
+!.claude/commands/
+!.claude/agents/
+!.claude/settings.json
