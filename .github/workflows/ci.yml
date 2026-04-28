@@ -1,0 +1,66 @@
+# Continuous integration for the Product Copier extension.
+# Runs on every push to main + every PR. Three jobs in parallel:
+#   1. syntax    — node --check on all 5 JS files
+#   2. lint      — eslint . (with the flat config tuned for SW + content scripts)
+#   3. versions  — manifest.json version must match both build stamps
+#
+# Keep these green before merging. Branch protection on `main` enforces it.
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  syntax:
+    name: Syntax (node --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run node --check on every JS file
+        run: |
+          for f in background.js content_copy.js popup.js options.js paste_salla.js; do
+            echo "› $f"
+            node --check "$f"
+          done
+
+  lint:
+    name: Lint (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dev dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run ESLint
+        run: npm run lint
+
+  versions:
+    name: Version-stamp sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify manifest.json version matches both build stamps
+        run: node .github/scripts/check-version-stamps.mjs
+
+  manifest:
+    name: Manifest validity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: manifest.json must parse as JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('✓ manifest.json parses')"
