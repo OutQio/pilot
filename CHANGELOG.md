@@ -43,7 +43,7 @@ and echoed in the build stamps at the top of `background.js` and
 ## [5.4.5] — [5.4.6] — 2026-04-26
 
 ### Changed
-- Iterated on the cover-image margin while matching the iblackstores brand
+- Iterated on the cover-image margin while matching the target store's brand
   template: 10% → 5% → 15%.
 
 ## [5.4.4] — 2026-04-26

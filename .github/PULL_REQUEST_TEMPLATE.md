@@ -8,7 +8,7 @@
 - [ ] `chrome://extensions` shows the new version under the extension name
 - [ ] Service-worker console (Inspect views: service worker) shows the matching `[ProductCopier] background.js build X.Y.Z (...)` build stamp
 - [ ] If `content_copy.js` was changed: page console on a real product page shows the matching `[ProductCopier] content_copy.js build X.Y.Z (...)` line
-- [ ] Manual COPY on at least one of the live-tested sites in `HANDOFF.md` § 8 produces a clean `window.__copiedProduct` (title, ≥ 1 image, non-empty description)
+- [ ] Manual COPY on at least one of the live-tested sites in `README.md` produces a clean `window.__copiedProduct` (title, ≥ 1 image, non-empty description)
 - [ ] Manual PASTE into a Salla product form fills title, description, and at least one image
 
 ## Version bump
@@ -20,4 +20,4 @@
 ## Docs
 - [ ] Added a `CHANGELOG.md` entry under the new version
 - [ ] If invariants in `CLAUDE.md` changed, updated that section
-- [ ] If file layout / cross-file conventions changed, updated `HANDOFF.md`
+- [ ] If file layout / cross-file conventions changed, updated `CLAUDE.md`

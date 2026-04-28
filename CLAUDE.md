@@ -2,9 +2,9 @@
 
 Project memory for Claude Code. **Read this first.**
 
-For deep architectural detail, defer to [`HANDOFF.md`](./HANDOFF.md). For
-the contributing rules in human-readable form, see
-[`CONTRIBUTING.md`](./CONTRIBUTING.md). This file is the fast-loading
+For install + usage + worked rewrite example + live-tested sites, see
+[`README.md`](./README.md). For contributing rules in human-readable form,
+see [`CONTRIBUTING.md`](./CONTRIBUTING.md). This file is the fast-loading
 summary of what to know before touching code.
 
 ---
@@ -31,9 +31,9 @@ keep their original framing but are also re-encoded as WebP.
 | `popup.{html,js,css}` | Popup UI. Step 1 COPY (DOM only) + Step 2 PASTE (with optional rewrite toggle). |
 | `options.{html,js,css}` | Settings page. Gemini key, rewrite rules + examples, performance toggles. |
 | `icons/` | 48 + 128 px PNGs for the toolbar / chrome://extensions card. |
-| `HANDOFF.md` | Long-form architectural doc — pick this up cold. |
 | `CHANGELOG.md` | Version-by-version changes. |
-| `README.md` | User-facing landing page (install + usage). |
+| `README.md` | User-facing landing page (install + usage + worked rewrite example + live-tested sites). |
+| `CONTRIBUTING.md` | Branching, commits, version-bump, pre-merge checks. |
 
 ---
 
@@ -130,7 +130,7 @@ keep their original framing but are also re-encoded as WebP.
 There's no formal test suite. Three live workflows:
 
 1. **DOM scraper smoke test.** Visit any product page from the
-   `Site-specific notes` section of `HANDOFF.md`. Open DevTools console on
+   "Live-tested platforms" table in `README.md`. Open DevTools console on
    that page. Run:
    ```js
    await fetch(chrome.runtime.getURL('content_copy.js')).then(r => r.text()).then(s => new Function(s)());
@@ -138,12 +138,14 @@ There's no formal test suite. Three live workflows:
    ```
    Expect: clean title, ≥ 1 image URL, non-empty description.
 
-2. **Rewrite quality test.** Save iblackstores rules + examples in Options.
-   Copy a product, paste with rewrite toggle on. Verify in Salla form:
-   title is `<brand-ar> - <type+spec> - <color>`, description has bold-
-   title repeat → marketing intro → bullet list under "المميزات الرئيسية:"
-   → optional spec list → closing paragraph under "ليش ممكن تشتريه؟", uses
-   Khaleeji dialect markers.
+2. **Rewrite quality test.** Save the active store's rules + examples in
+   Options. Copy a product, paste with rewrite toggle on. Verify in Salla
+   form that the output matches the configured rules — for example, with
+   the worked Khaleeji-Arabic example in `README.md`: title is
+   `<brand-ar> - <type+spec> - <color>`, description has bold-title repeat
+   → marketing intro → bullet list under "المميزات الرئيسية:" → optional
+   spec list → closing paragraph under "ليش ممكن تشتريه؟", uses Khaleeji
+   dialect markers.
 
 3. **Image normalisation visual test.** After paste, download the WebP
    files Salla received. Cover image should be 1000×1000, white bg, product

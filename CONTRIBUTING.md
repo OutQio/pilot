@@ -121,10 +121,11 @@ service-worker console.
 There's no formal test suite. Three live workflows:
 
 1. **DOM scraper smoke test** — visit a real product page from one of the
-   sites in [`HANDOFF.md` § 8](./HANDOFF.md#8-site-specific-notes-from-live-testing)
+   sites in the [Live-tested platforms](./README.md#live-tested-platforms) table
    and verify `window.__copiedProduct` after running `content_copy.js`.
-2. **Rewrite quality test** — save iblackstores rules in Options, copy a
-   product, paste with rewrite toggle on, verify the resulting Salla form.
+2. **Rewrite quality test** — save your store's rules + examples in
+   Options, copy a product, paste with rewrite toggle on, verify the
+   resulting Salla form matches your brand voice.
 3. **Image normalisation visual test** — after paste, download the WebP
    files and visually verify the cover is centred / sized correctly and
    gallery images aren't distorted.
@@ -140,7 +141,7 @@ you open a PR). Before requesting review, confirm:
 - [ ] You ran the relevant manual smoke test from § 5
 - [ ] You bumped the version in three places + added a `CHANGELOG.md` entry
 - [ ] If invariants in `CLAUDE.md` changed, you updated that section
-- [ ] If file layout / cross-file conventions changed, you updated `HANDOFF.md`
+- [ ] If file layout / cross-file conventions changed, you updated `CLAUDE.md`
 - [ ] Sensitive material (API keys, tokens) is NOT in any commit
 
 ---
