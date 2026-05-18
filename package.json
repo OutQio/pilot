@@ -18,7 +18,7 @@
     "check": "npm run syntax && npm run lint && npm run check:versions"
   },
   "devDependencies": {
-    "eslint": "^9.18.0",
+    "eslint": "^10.4.0",
     "globals": "^15.14.0"
   }
 }
